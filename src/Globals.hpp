@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 
@@ -9,14 +10,22 @@
 
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/animation/AnimationManager.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/types.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
-#include <hyprland/src/managers/animation/AnimationManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
+#include <hyprland/src/helpers/MiscFunctions.hpp>
 #include <hyprland/src/event/EventBus.hpp>
+#include <hyprland/src/state/WorkspaceState.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
+#include <hyprland/src/desktop/state/WindowState.hpp>
+#include <hyprland/src/desktop/state/ViewState.hpp>
+#include <hyprland/src/desktop/state/GlobalWindowController.hpp>
+#include <hyprland/src/pointer/PointerController.hpp>
 
 // Hyprland v0.54+: cancellable input uses Event::SCallbackInfo (not legacy CEvent*).
 using SCallbackInfo = Event::SCallbackInfo;
@@ -36,6 +45,33 @@ CHyprSignalListener listenCancellable(Signal& signal, std::function<void(const E
         auto* tup = static_cast<Tuple*>(args);
         handler(std::get<0>(*tup), std::get<1>(*tup));
     });
+}
+
+// Hyprland v0.56+: compositor state moved into dedicated trackers.
+inline PHLMONITOR monitorFromID(MONITORID id) {
+    return State::monitorState()->query().id(id).run();
+}
+
+inline PHLMONITOR monitorFromName(std::string_view name) {
+    if (name.empty())
+        return nullptr;
+    return State::monitorState()->query().name(name).run();
+}
+
+inline PHLMONITOR monitorFromCursor() {
+    return State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run();
+}
+
+inline PHLWORKSPACE workspaceByID(WORKSPACEID id) {
+    return State::workspaceState()->query().id(id).run();
+}
+
+inline PHLWORKSPACE createWorkspace(WORKSPACEID id, MONITORID monid) {
+    return State::workspaceState()->create(id, monid);
+}
+
+inline bool compositorUnsafe() {
+    return !g_pCompositor || !g_pCompositor->m_sessionActive || State::monitorState()->monitors().empty();
 }
 
 inline HANDLE pHandle = NULL;
@@ -94,4 +130,9 @@ namespace Config {
     extern float workspaceScrollSpeed;
 }
 
-extern int numWorkspaces;
+inline double panelTravel(PHLMONITOR owner) {
+    if (!owner)
+        return 0.;
+
+    return (Config::panelHeight + Config::reservedArea) * owner->m_scale;
+}

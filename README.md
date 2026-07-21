@@ -2,7 +2,7 @@
 
 Hyprland overview / workspace-expo plugin. Renders a top or bottom workspace strip with live thumbnails; switch or move windows between workspaces.
 
-This fork targets current Hyprland with **Lua-based configuration** (not the old `.conf` / Hyprlang plugin config flow).
+This fork targets Hyprland **0.56.0+** with **Lua-based configuration** (not the old `.conf` / Hyprlang plugin config flow).
 
 ## Features
 
@@ -15,7 +15,7 @@ This fork targets current Hyprland with **Lua-based configuration** (not the old
 
 ## Requirements
 
-- Hyprland with plugin support
+- Hyprland **0.56.0+** (Animation / State API refactor)
 - Hyprland development headers / pkg-config metadata (manual builds)
 - C++ compiler with C++23 support
 
@@ -243,8 +243,12 @@ Do **not** append `Hyprspace/Hyprspace.lua` directly — use `?.lua`.
 ### `hyprpm enable` fails
 
 - Correct repo URL
-- `hyprpm.toml` has a commit pin for your Hyprland version
+- `hyprpm.toml` has a commit pin for your Hyprland version (for 0.56.0, pin after the State/Animation API port is committed)
 - Plugin builds cleanly on that commit (`hyprpm update` / rebuild)
+
+### Build fails: missing `AnimationManager.hpp`
+
+On Hyprland 0.56+, animation headers moved from `managers/animation/` to `animation/`, and compositor helpers moved into `State::` / `Desktop::` / `Fullscreen::` trackers. Rebuild this fork against matching headers (`pkg-config --modversion hyprland`).
 
 ### Plugin crashes on load
 

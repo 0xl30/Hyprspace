@@ -73,8 +73,6 @@ float       Config::swipeThreshold          = 10.F;
 float       Config::swipeClosedPadding      = 10.F;
 float       Config::workspaceScrollSpeed    = 2.F;
 
-int numWorkspaces = -1;
-
 CHyprSignalListener g_pRenderHook;
 CHyprSignalListener g_pConfigReloadHook;
 CHyprSignalListener g_pOpenLayerHook;
@@ -267,7 +265,7 @@ bool  g_layoutNeedsRefresh = true;
 float g_oAlpha             = -1;
 
 void onRender(eRenderStage renderStage) {
-    if (g_pCompositor->m_unsafeState)
+    if (compositorUnsafe())
         return;
 
     if (renderStage == eRenderStage::RENDER_PRE) {
@@ -312,7 +310,7 @@ void onRender(eRenderStage renderStage) {
         }
 
         curWindow->alpha(Desktop::View::WINDOW_ALPHA_ACTIVE)->setValueAndWarp(Config::dragAlpha);
-        curWindow->m_ruleApplicator->noBlur().unset(Desktop::Types::PRIORITY_SET_PROP);
+        curWindow->m_ruleApplicator->noBlur().set(true, Desktop::Types::PRIORITY_SET_PROP);
         const auto time = Time::steadyNow();
         (*(tRenderWindow)pRenderWindow)(g_pHyprRenderer.get(), curWindow, widget->getOwner(), time, true, Render::RENDER_PASS_MAIN, false, false);
         curWindow->m_ruleApplicator->noBlur().unset(Desktop::Types::PRIORITY_SET_PROP);
@@ -322,10 +320,10 @@ void onRender(eRenderStage renderStage) {
 }
 
 void onWorkspaceChange(PHLWORKSPACE workspace) {
-    if (!workspace)
+    if (!workspace || !workspace->m_monitor)
         return;
 
-    const auto widget = getWidgetForMonitor(g_pCompositor->getMonitorFromID(workspace->m_monitor->m_id));
+    const auto widget = getWidgetForMonitor(monitorFromID(workspace->m_monitor->m_id));
     if (widget && widget->isActive())
         widget->show();
 }
@@ -335,7 +333,7 @@ void onMouseButton(const IPointer::SButtonEvent& event, SCallbackInfo& info) {
     if (!pointer || event.button != BTN_LEFT)
         return;
 
-    const auto monitor = g_pCompositor->getMonitorFromCursor();
+    const auto monitor = monitorFromCursor();
     if (!monitor)
         return;
 
@@ -345,7 +343,7 @@ void onMouseButton(const IPointer::SButtonEvent& event, SCallbackInfo& info) {
 }
 
 void onMouseAxis(const IPointer::SAxisEvent& event, SCallbackInfo& info) {
-    const auto monitor = g_pCompositor->getMonitorFromCursor();
+    const auto monitor = monitorFromCursor();
     if (!monitor)
         return;
 
@@ -358,7 +356,7 @@ void onSwipeBegin(const IPointer::SSwipeBeginEvent& event, SCallbackInfo& info) 
     if (Config::disableGestures)
         return;
 
-    const auto widget = getWidgetForMonitor(g_pCompositor->getMonitorFromCursor());
+    const auto widget = getWidgetForMonitor(monitorFromCursor());
     if (widget)
         widget->beginSwipe(event);
 
@@ -375,7 +373,7 @@ void onSwipeUpdate(const IPointer::SSwipeUpdateEvent& event, SCallbackInfo& info
     if (Config::disableGestures)
         return;
 
-    const auto widget = getWidgetForMonitor(g_pCompositor->getMonitorFromCursor());
+    const auto widget = getWidgetForMonitor(monitorFromCursor());
     if (widget)
         info.cancelled = !widget->updateSwipe(event);
 }
@@ -384,7 +382,7 @@ void onSwipeEnd(const IPointer::SSwipeEndEvent& event, SCallbackInfo& info) {
     if (Config::disableGestures)
         return;
 
-    const auto widget = getWidgetForMonitor(g_pCompositor->getMonitorFromCursor());
+    const auto widget = getWidgetForMonitor(monitorFromCursor());
     if (widget)
         widget->endSwipe(event);
 }
@@ -419,8 +417,8 @@ void onTouchDown(const ITouch::SDownEvent& event, SCallbackInfo& info) {
     if (!event.device)
         return;
 
-    auto targetMonitor = g_pCompositor->getMonitorFromName(!event.device->m_boundOutput.empty() ? event.device->m_boundOutput : "");
-    targetMonitor      = targetMonitor ? targetMonitor : g_pCompositor->getMonitorFromCursor();
+    auto targetMonitor = monitorFromName(!event.device->m_boundOutput.empty() ? event.device->m_boundOutput : "");
+    targetMonitor      = targetMonitor ? targetMonitor : monitorFromCursor();
 
     const auto widget = getWidgetForMonitor(targetMonitor);
     if (widget && targetMonitor && widget->isActive()) {
@@ -428,7 +426,7 @@ void onTouchDown(const ITouch::SDownEvent& event, SCallbackInfo& info) {
         info.cancelled     = !widget->buttonEvent(true, pos);
         if (info.cancelled) {
             g_pTouchedMonitor = targetMonitor;
-            g_pCompositor->warpCursorTo(pos);
+            Pointer::pointerController()->warpTo(pos);
             g_pInputManager->refocus();
         }
     }
@@ -438,7 +436,7 @@ void onTouchMove(const ITouch::SMotionEvent& event, SCallbackInfo& info) {
     if (!g_pTouchedMonitor)
         return;
 
-    g_pCompositor->warpCursorTo(g_pTouchedMonitor->m_position + g_pTouchedMonitor->m_size * event.pos);
+    Pointer::pointerController()->warpTo(g_pTouchedMonitor->m_position + g_pTouchedMonitor->m_size * event.pos);
     g_pInputManager->simulateMouseMovement();
 }
 
@@ -451,7 +449,7 @@ void onTouchUp(const ITouch::SUpEvent& event, SCallbackInfo& info) {
 }
 
 static SDispatchResult dispatchToggleOverview(std::string arg) {
-    const auto currentMonitor = g_pCompositor->getMonitorFromCursor();
+    const auto currentMonitor = monitorFromCursor();
     const auto widget         = getWidgetForMonitor(currentMonitor);
     if (!widget)
         return {};
@@ -480,7 +478,7 @@ static SDispatchResult dispatchOpenOverview(std::string arg) {
                 widget->show();
         }
     } else {
-        const auto widget = getWidgetForMonitor(g_pCompositor->getMonitorFromCursor());
+        const auto widget = getWidgetForMonitor(monitorFromCursor());
         if (widget && !widget->isActive())
             widget->show();
     }
@@ -495,7 +493,7 @@ static SDispatchResult dispatchCloseOverview(std::string arg) {
                 widget->hide();
         }
     } else {
-        const auto widget = getWidgetForMonitor(g_pCompositor->getMonitorFromCursor());
+        const auto widget = getWidgetForMonitor(monitorFromCursor());
         if (widget && widget->isActive())
             widget->hide();
     }
@@ -585,8 +583,6 @@ void reloadConfig() {
     Config::exitKey                 = readStringValue(g_pluginConfigValues.exitKey, Config::exitKey);
     Config::clickReleaseThresholdMs = readIntValue(g_pluginConfigValues.clickReleaseThresholdMs, Config::clickReleaseThresholdMs);
 
-    numWorkspaces = -1;
-
     for (auto& widget : g_overviewWidgets) {
         if (!widget)
             continue;
@@ -599,7 +595,7 @@ void reloadConfig() {
 }
 
 void registerMonitors() {
-    for (auto& monitor : g_pCompositor->m_monitors) {
+    for (auto& monitor : State::monitorState()->monitors()) {
         if (getWidgetForMonitor(monitor))
             continue;
 
@@ -653,7 +649,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
     g_pPreRemoveMonitorHook  = Event::bus()->m_events.monitor.preRemoved.listen([](PHLMONITOR monitor) { teardownMonitorWidget(monitor); });
     g_pRemoveMonitorHook     = Event::bus()->m_events.monitor.removed.listen([](PHLMONITOR monitor) { removeMonitorWidget(monitor); });
 
-    return {"Hyprspace", "Workspace overview", "KZdkm", "0.2"};
+    return {"Hyprspace", "Workspace overview", "KZdkm", "0.3"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
@@ -677,8 +673,13 @@ APICALL EXPORT void PLUGIN_EXIT() {
     g_pStartHook.reset();
 
     for (auto& widget : g_overviewWidgets) {
-        if (widget)
-            widget->cleanup(widget->getOwner());
+        if (!widget)
+            continue;
+
+        endSwipeIfNeeded(widget);
+        if (widget->isActive())
+            widget->hide();
+        widget->cleanup(widget->getOwner());
     }
     g_overviewWidgets.clear();
 

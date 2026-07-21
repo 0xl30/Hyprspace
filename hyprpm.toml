@@ -20,6 +20,8 @@ commit_pins = [
     ["0bd541f2fd902dbfa04c3ea2ccf679395e316887", "cd58d2e47b575c66c2682436ba425ccdc8462998"], # 0.46.2
     ["4e242d086e20b32951fdc0ebcbfb4d41b5be8dcc", "0a82e3724f929de8ad8fb04d2b7fa128493f24f7"], # 0.50.1
     ["39d7e209c79d451efab1b21151d5938289da838d", "f4b2c2537b2c02a477f17e3a684d4b542d82537b"], # 0.55.2
+    # 0.56.0 — pin plugin commit after publishing the State/Animation API port:
+    # ["36b2e0cfe0c6094dbc47bd42a437431315bb3087", "<plugin-commit-with-0.56-port>"], # 0.56.0
 ]
 
 [Hyprspace]

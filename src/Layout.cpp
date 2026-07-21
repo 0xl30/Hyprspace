@@ -17,5 +17,5 @@ void CHyprspaceWidget::updateLayout() {
 
     g_pHyprRenderer->arrangeLayersForMonitor(ownerID);
     g_layoutManager->recalculateMonitor(monitor);
-    g_pCompositor->scheduleFrameForMonitor(monitor);
+    monitor->scheduleFrame();
 }

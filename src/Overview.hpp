@@ -1,5 +1,6 @@
 #pragma once
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprutils/animation/AnimationConfig.hpp>
 
 class CHyprspaceWidget {
@@ -8,22 +9,21 @@ class CHyprspaceWidget {
 
     int64_t ownerID;
 
-    // animation override stuff
     Hyprutils::Animation::SAnimationPropertyConfig curAnimationConfig;
-    Hyprutils::Animation::SAnimationPropertyConfig curAnimation;
+    SP<Hyprutils::Animation::SAnimationPropertyConfig> m_animationConfig;
 
     // for checking mouse hover for workspace drag and move
     // modified on draw call, accessed on mouse click and release
     std::vector<std::tuple<WORKSPACEID, CBox>> workspaceBoxes;
 
     // for storing the fullscreen state of windows prior to overview activation (which unfullscreens all windows)
-    std::vector<std::tuple<PHLWINDOWREF, eFullscreenMode>> prevFullscreen;
+    std::vector<std::tuple<PHLWINDOWREF, Fullscreen::SFullscreenMode>> prevFullscreen;
 
     // for storing the layer alpha values prior to overview activation (which sets all panel to transparent when configured)
     std::vector<std::tuple<PHLLS, float>> oLayerAlpha;
 
     // for click-to-exit
-    std::chrono::system_clock::time_point lastPressedTime = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point lastPressedTime = std::chrono::high_resolution_clock::now();
 
     bool swiping = false;
     // whether if the panel is active before the current swiping event
@@ -38,6 +38,8 @@ class CHyprspaceWidget {
 
     void restoreHiddenLayers();
     void restoreFullscreenWindows();
+    void releaseAnimations();
+    bool animationsOk() const;
     void resetAnimationState(PHLMONITOR owner);
 
 public:

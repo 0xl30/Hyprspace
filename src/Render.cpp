@@ -1,8 +1,6 @@
 #include "Overview.hpp"
 #include "Globals.hpp"
 #include <algorithm>
-#include <climits>
-#include <limits>
 #include <unordered_map>
 
 #include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
@@ -48,17 +46,17 @@ void renderWindowStub(PHLWINDOW window, PHLMONITOR monitor, PHLWORKSPACE workspa
     if (!window || !monitor || !workspaceOverride)
         return;
 
-    if (!window->m_isMapped || !window->wlSurface() || !window->wlSurface()->resource())
+    if (!window->m_isMapped || !window->wlSurface() || !window->wlSurface()->resource() || !window->m_ruleApplicator)
         return;
 
     Render::SRenderModifData renderModif;
 
-    const auto  workspace           = window->m_workspace;
-    const auto  fullscreenState     = window->m_fullscreenState;
-    const auto  realPosition        = window->m_realPosition->value();
-    const auto  realSize            = window->m_realSize->value();
-    const auto  pinned              = window->m_pinned;
-    const auto  floating            = window->m_isFloating;
+    const auto  workspace    = window->m_workspace;
+    const auto  fsModes      = Fullscreen::controller()->getFullscreenModes(window);
+    const auto  realPosition = window->positionAnimation()->value();
+    const auto  realSize     = window->sizeAnimation()->value();
+    const auto  pinned       = window->m_pinned;
+    const auto  floating     = window->m_isFloating;
     const float logicalW            = std::max(static_cast<float>(realSize.x), 5.F);
     const float scaleMod            = rectOverride.w / std::max(logicalW * monitor->m_scale, 5.F);
     if (!(scaleMod > 0.F) || !(rectOverride.w > 0 && rectOverride.h > 0))
@@ -72,16 +70,20 @@ void renderWindowStub(PHLWINDOW window, PHLMONITOR monitor, PHLWORKSPACE workspa
     renderModif.modifs.push_back(std::make_pair(Render::SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, std::any(scaleMod)));
     renderModif.enabled = true;
 
-    window->m_workspace       = workspaceOverride;
-    window->m_fullscreenState = Desktop::View::SFullscreenState{FSMODE_NONE};
+    window->m_workspace  = workspaceOverride;
     window->m_ruleApplicator->nearestNeighbor().set(false, Desktop::Types::PRIORITY_SET_PROP);
     window->m_isFloating = false;
     window->m_pinned     = true;
     window->m_ruleApplicator->rounding().set(window->rounding() * scaleMod * monitor->m_scale, Desktop::Types::PRIORITY_SET_PROP);
 
+    const bool wasFullscreen = fsModes.internal != Fullscreen::FSMODE_NONE;
+    if (wasFullscreen)
+        Fullscreen::controller()->setFullscreenMode(window, Fullscreen::FSMODE_NONE, Fullscreen::FSMODE_NONE);
+
     Hyprutils::Utils::CScopeGuard restoreWindowState([&] {
-        window->m_workspace       = workspace;
-        window->m_fullscreenState = fullscreenState;
+        if (wasFullscreen)
+            Fullscreen::controller()->setFullscreenMode(window, fsModes.internal, fsModes.client);
+        window->m_workspace  = workspace;
         window->m_ruleApplicator->nearestNeighbor().unset(Desktop::Types::PRIORITY_SET_PROP);
         window->m_isFloating = floating;
         window->m_pinned     = pinned;
@@ -102,13 +104,13 @@ void renderLayerStub(PHLLS layer, PHLMONITOR monitor, CBox rectOverride, const T
     if (!layer || !monitor)
         return;
 
-    if (!layer->m_mapped || layer->m_readyToDelete || !layer->m_layerSurface || !layer->wlSurface() || !layer->wlSurface()->resource())
+    if (!layer->m_mapped || !layer->m_layerSurface || !layer->wlSurface() || !layer->wlSurface()->resource())
         return;
 
-    const Vector2D realPosition = layer->m_realPosition->value();
-    const Vector2D realSize     = layer->m_realSize->value();
-    const float    alpha        = layer->m_alpha->value();
-    const bool     fadingOut    = layer->m_fadingOut;
+    const Vector2D realPosition = layer->positionAnimation()->value();
+    const Vector2D realSize     = layer->sizeAnimation()->value();
+    auto&          fadeAlpha    = layer->alpha()[Desktop::View::LS_ALPHA_FADE];
+    const float    alpha        = fadeAlpha->value();
 
     const float scale = rectOverride.w / realSize.x;
     if (!(scale > 0.F) || !(rectOverride.w > 0 && rectOverride.h > 0))
@@ -119,8 +121,7 @@ void renderLayerStub(PHLLS layer, PHLMONITOR monitor, CBox rectOverride, const T
     renderModif.modifs.push_back(std::make_pair(Render::SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, std::any(scale)));
     renderModif.enabled = true;
 
-    layer->m_alpha->setValueAndWarp(1.F);
-    layer->m_fadingOut = false;
+    fadeAlpha->setValueAndWarp(1.F);
 
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData{.renderModif = renderModif}));
     Hyprutils::Utils::CScopeGuard clearHints([] {
@@ -129,18 +130,17 @@ void renderLayerStub(PHLLS layer, PHLMONITOR monitor, CBox rectOverride, const T
     if (pRenderLayer)
         (*(tRenderLayer)pRenderLayer)(g_pHyprRenderer.get(), layer, monitor, time, false, false);
 
-    layer->m_fadingOut = fadingOut;
-    layer->m_alpha->setValueAndWarp(alpha);
+    fadeAlpha->setValueAndWarp(alpha);
 }
 
 bool renderWindowPreview(PHLWINDOW window, PHLWORKSPACE workspace, PHLMONITOR owner, double workspaceX, double workspaceY, double monitorScaleFactor, const Time::steady_tp& time) {
     if (!window || !workspace || !owner)
         return false;
 
-    const double wX = workspaceX + ((window->m_realPosition->value().x - owner->m_position.x) * monitorScaleFactor * owner->m_scale);
-    const double wY = workspaceY + ((window->m_realPosition->value().y - owner->m_position.y) * monitorScaleFactor * owner->m_scale);
-    const double wW = window->m_realSize->value().x * monitorScaleFactor * owner->m_scale;
-    const double wH = window->m_realSize->value().y * monitorScaleFactor * owner->m_scale;
+    const double wX = workspaceX + ((window->positionAnimation()->value().x - owner->m_position.x) * monitorScaleFactor * owner->m_scale);
+    const double wY = workspaceY + ((window->positionAnimation()->value().y - owner->m_position.y) * monitorScaleFactor * owner->m_scale);
+    const double wW = window->sizeAnimation()->value().x * monitorScaleFactor * owner->m_scale;
+    const double wH = window->sizeAnimation()->value().y * monitorScaleFactor * owner->m_scale;
     if (!(wW > 0 && wH > 0))
         return false;
 
@@ -153,7 +153,7 @@ bool renderWindowPreview(PHLWINDOW window, PHLWORKSPACE workspace, PHLMONITOR ow
 void CHyprspaceWidget::draw() {
     workspaceBoxes.clear();
 
-    if (g_pCompositor->m_unsafeState)
+    if (compositorUnsafe() || !animationsOk())
         return;
 
     if (!active && !curYOffset->isBeingAnimated())
@@ -201,38 +201,31 @@ void CHyprspaceWidget::draw() {
     if (Config::showSpecialWorkspace)
         workspaces.push_back(SPECIAL_WORKSPACE_START);
 
-    WORKSPACEID lowestID  = std::numeric_limits<WORKSPACEID>::max();
     WORKSPACEID highestID = 1;
-    for (const auto& ws : g_pCompositor->getWorkspaces()) {
+    for (const auto& wsRef : State::workspaceState()->workspaces()) {
+        const auto ws = wsRef.lock();
         if (!ws || ws->m_id < 1 || !ws->m_monitor || ws->m_monitor->m_id != ownerID)
             continue;
 
         workspaces.push_back(ws->m_id);
         highestID = std::max(highestID, ws->m_id);
-        lowestID  = std::min(lowestID, ws->m_id);
     }
 
     if (Config::showEmptyWorkspace) {
-        WORKSPACEID wsIDStart = 1;
-        WORKSPACEID wsIDEnd   = highestID;
-
-        if (numWorkspaces > 0) {
-            const auto baseWorkspace = static_cast<WORKSPACEID>(numWorkspaces * ownerID + 1);
-            wsIDStart                = std::min<WORKSPACEID>(baseWorkspace, lowestID);
-            wsIDEnd                  = std::max<WORKSPACEID>(baseWorkspace, highestID);
-        }
+        const WORKSPACEID wsIDStart = 1;
+        const WORKSPACEID wsIDEnd   = highestID;
 
         for (WORKSPACEID id = wsIDStart; id <= wsIDEnd; id++) {
             if (id == owner->activeSpecialWorkspaceID())
                 continue;
 
-            if (g_pCompositor->getWorkspaceByID(id) == nullptr)
+            if (workspaceByID(id) == nullptr)
                 workspaces.push_back(id);
         }
     }
 
     if (Config::showNewWorkspace) {
-        while (g_pCompositor->getWorkspaceByID(highestID) != nullptr)
+        while (workspaceByID(highestID) != nullptr)
             highestID++;
         workspaces.push_back(highestID);
     }
@@ -259,7 +252,7 @@ void CHyprspaceWidget::draw() {
 
     std::unordered_map<WORKSPACEID, SWorkspaceWindows> windowsByWorkspace;
     windowsByWorkspace.reserve(workspaceCount + 2);
-    for (const auto& window : g_pCompositor->m_windows) {
+    for (const auto& window : Desktop::windowState()->windows()) {
         if (!window || !window->m_workspace)
             continue;
 
@@ -271,7 +264,7 @@ void CHyprspaceWidget::draw() {
     }
 
     for (const auto wsID : workspaces) {
-        const auto ws  = g_pCompositor->getWorkspaceByID(wsID);
+        const auto ws  = workspaceByID(wsID);
         CBox       box = {workspaceOffsetX, workspaceOffsetY, workspaceBoxW, workspaceBoxH};
 
         if (ws == owner->m_activeWorkspace) {
@@ -303,7 +296,7 @@ void CHyprspaceWidget::draw() {
                 if (!layer)
                     continue;
 
-                CBox layerBox = {box.pos() + (layer->m_realPosition->value() - owner->m_position) * monitorScaleFactor, layer->m_realSize->value() * monitorScaleFactor};
+                CBox layerBox = {box.pos() + (layer->positionAnimation()->value() - owner->m_position) * monitorScaleFactor, layer->sizeAnimation()->value() * monitorScaleFactor};
                 renderLayerStub(layer, owner, layerBox, time);
             }
 
@@ -312,7 +305,7 @@ void CHyprspaceWidget::draw() {
                 if (!layer)
                     continue;
 
-                CBox layerBox = {box.pos() + (layer->m_realPosition->value() - owner->m_position) * monitorScaleFactor, layer->m_realSize->value() * monitorScaleFactor};
+                CBox layerBox = {box.pos() + (layer->positionAnimation()->value() - owner->m_position) * monitorScaleFactor, layer->sizeAnimation()->value() * monitorScaleFactor};
                 renderLayerStub(layer, owner, layerBox, time);
             }
         }
@@ -330,9 +323,9 @@ void CHyprspaceWidget::draw() {
 
         if (ws) {
             const auto windowsIt = windowsByWorkspace.find(ws->m_id);
-                if (windowsIt != windowsByWorkspace.end()) {
-                    for (const auto& window : windowsIt->second.tiled)
-                        renderWindowPreview(window, ws, owner, workspaceOffsetX, workspaceOffsetY, monitorScaleFactor, time);
+            if (windowsIt != windowsByWorkspace.end()) {
+                for (const auto& window : windowsIt->second.tiled)
+                    renderWindowPreview(window, ws, owner, workspaceOffsetX, workspaceOffsetY, monitorScaleFactor, time);
 
                 const auto focused = ws->getLastFocusedWindow();
                 for (const auto& window : windowsIt->second.floating) {
@@ -354,7 +347,7 @@ void CHyprspaceWidget::draw() {
                     if (!layer)
                         continue;
 
-                    CBox layerBox = {box.pos() + (layer->m_realPosition->value() - owner->m_position) * monitorScaleFactor, layer->m_realSize->value() * monitorScaleFactor};
+                    CBox layerBox = {box.pos() + (layer->positionAnimation()->value() - owner->m_position) * monitorScaleFactor, layer->sizeAnimation()->value() * monitorScaleFactor};
                     renderLayerStub(layer, owner, layerBox, time);
                 }
             }
@@ -365,7 +358,7 @@ void CHyprspaceWidget::draw() {
                     if (!layer)
                         continue;
 
-                    CBox layerBox = {box.pos() + (layer->m_realPosition->value() - owner->m_position) * monitorScaleFactor, layer->m_realSize->value() * monitorScaleFactor};
+                    CBox layerBox = {box.pos() + (layer->positionAnimation()->value() - owner->m_position) * monitorScaleFactor, layer->sizeAnimation()->value() * monitorScaleFactor};
                     renderLayerStub(layer, owner, layerBox, time);
                 }
             }
