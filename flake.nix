@@ -14,8 +14,6 @@
       ref = "v0.56.0";
       inputs.systems.follows = "systems";
     };
-    # After changing the Hyprland ref, refresh the lock with:
-    #   nix flake update hyprland
   };
 
   outputs = {
@@ -52,7 +50,7 @@
       Hyprspace = let
         hyprlandPkg = hyprland.packages.${system}.hyprland;
       in
-        pkgs.gcc16Stdenv.mkDerivation {
+        pkgs.gcc14Stdenv.mkDerivation {
           pname = "Hyprspace";
           inherit version;
           src = ./.;
@@ -80,7 +78,7 @@
     devShells = perSystem (system: pkgs: {
       default = pkgs.mkShell {
         name = "Hyprspace-shell";
-        nativeBuildInputs = with pkgs; [gcc16 clang-tools bear];
+        nativeBuildInputs = with pkgs; [gcc14 clang-tools bear];
         buildInputs = [hyprland.packages.${system}.hyprland];
         inputsFrom = [
           hyprland.packages.${system}.hyprland

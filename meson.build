@@ -1,5 +1,5 @@
 project('Hyprspace', 'cpp',
-  version: '0.3',
+  version: '0.1',
   default_options: ['buildtype=release'],
 )
 

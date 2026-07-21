@@ -1,255 +1,218 @@
 # Hyprspace
 
-Hyprland overview / workspace-expo plugin. Renders a top or bottom workspace strip with live thumbnails; switch or move windows between workspaces.
+A plugin for Hyprland that implements a workspace overview feature similar to that of KDE Plasma, GNOME and macOS, aimed to provide a efficient way of workspace and window management.
 
-This fork targets Hyprland **0.56.0+** with **Lua-based configuration** (not the old `.conf` / Hyprlang plugin config flow).
+> [!NOTE]
+> This plugin is still maintained, by combined efforts of me and all the awesome contributors. However, I do not have as much time that I could spend on this plugin as before, and Hyprland is a rapidly changing codebase. Therefore, at this time, I could not guarantee that new issues could be resolved promptly. I appreciate your acknowledgement and support for this project!
+> 
+> P.S.: I could recommend giving [niri](https://github.com/YaLTeR/niri) a try for anyone who is considering an alternative to Hyprland. It is a scrolling window manager that offers a great built-in overview feature that allows dragging windows in-between workspaces just like this plugin does. It also has better workspace management as it cleans up empty workspaces like GNOME does.
 
-## Features
+https://github.com/KZDKM/Hyprspace/assets/41317840/ed1a585a-30d5-4a79-a6da-8cc0713828f9
 
-- Live workspace overview with window thumbnails
-- Multi-monitor support
-- Mouse drag/drop between workspaces
-- Optional gesture support
-- Lua-native configuration via [Hyprspace.lua](./Hyprspace.lua)
-- Manual build or `hyprpm` install
+### [Jump to installation](#installation)
 
-## Requirements
+## Plugin Compatibility
+- [x] [hyprsplit](https://github.com/shezdy/hyprsplit) (tested, explicit support)
+- [x] [split-monitor-workspaces](https://github.com/Duckonaut/split-monitor-workspaces) (tested, explicit support)
+- [x] [hyprexpo](https://github.com/hyprwm/hyprland-plugins/tree/main/hyprexpo) (tested, minor bugs)
+- [x] Any layout plugin (except ones that override Hyprland's workspace management)
 
-- Hyprland **0.56.0+** (Animation / State API refactor)
-- Hyprland development headers / pkg-config metadata (manual builds)
-- C++ compiler with C++23 support
+## Roadmap
+- [x] Overview interface
+    - [x] Workspace minimap
+    - [x] Workspace display
+- [ ] Mouse controls
+    - [x] Moving window between workspaces
+    - [x] Creating new workspaces
+    - [ ] Dragging windows between workspace views
+- [ ] Configurability
+  - [ ] Styling
+    - [x] Panel background
+    - [x] Workspace background & border
+    - [x] Panel on Bottom
+    - [ ] Vertical layout (on left / right)
+    - [x] Panel top padding (reserved for bar / notch)
+    - [x] Panel border (color / thickness)
+    - [ ] Unique styling for special workspaces
+  - [x] Behavior
+    - [x] Autodrag windows
+    - [x] Autoscroll workspaces
+    - [x] Responsive workspace switching
+    - [x] Responsive exiting
+      - [x] Exit on click / switch
+      - [x] Exit with escape key
+    - [x] Blacklisting workspaces
+      - [x] Show / hide new workspace and empty workspaces
+      - [x] Show / hide special workspace (#11)
+- [x] Animation support
+- [x] Multi-monitor support (tested)
+- [x] Monitor scaling support (tested)
+- [x] aarch64 support (No function hook used)
+- [x] Touchpad & gesture support
+  - [x] Workspace swipe (#9)
+  - [x] Scrolling through workspace panel
+  - [x] Swipe to open
 
-## Setup
+## Installation
 
-Pick **one** load method. Do not enable `hyprpm` and also `hyprctl plugin load` the same plugin twice.
+### Manual
 
-### 1. Local build (recommended for this repo)
-
-Clone or keep the repo next to your Hyprland config, then build:
-
-```bash
-git clone https://github.com/0xl30/Hyprspace.git ~/.config/hypr/Hyprspace
-cd ~/.config/hypr/Hyprspace 
+To build, have hyprland headers installed and under the repo directory do:
+```
 make all
 ```
+Then use `hyprctl plugin load` followed by the absolute path to the `.so` file to load, you could add this to your `exec-once` to load the plugin on startup
 
-Produces `Hyprspace.so` in that directory (same folder as `Hyprspace.lua`).
-
-**`hyprland.lua`** (or your overlay entrypoint) — add the module search path:
-
-```lua
-package.path = package.path .. ";" .. HOME .. "/.config/hypr/Hyprspace/?.lua"
+### Hyprpm
 ```
-
-Use `?.lua`, not the full `Hyprspace.lua` filename. Lua replaces `?` with the module name for `require("Hyprspace")`.
-
-**`plugins.lua`:**
-
-```lua
-local hyprspace = require("Hyprspace")
-hyprspace.setup()
-```
-
-Optional explicit path (manual mode — only this path is tried):
-
-```lua
-hyprspace.setup({
-    plugin_path = HOME .. "/.config/hypr/Hyprspace/Hyprspace.so",
-})
-```
-
-**Keybinds** (e.g. in `keybinds.lua`):
-
-```lua
-local hyprspace = require("Hyprspace")
-
-hl.unbind("SUPER + A")
-hl.bind("SUPER + A", function()
-    hyprspace.toggle()
-end)
-```
-
-Reload:
-
-```bash
-hyprctl reload
-```
-
-### 2. `hyprpm`
-
-```bash
-hyprpm add https://github.com/0xl30/Hyprspace.git
+hyprpm add https://github.com/KZDKM/Hyprspace
 hyprpm enable Hyprspace
-hyprpm reload
 ```
 
-Still add `package.path` (same as above) so `require("Hyprspace")` finds the Lua helper.
+### Nix
+Refer to the [Hyprland wiki](https://wiki.hyprland.org/Nix/Hyprland-on-Home-Manager/#plugins) on plugins, but your flake might look like this:
+```nix
+{
+  inputs = {
+    # Hyprland is **such** eye candy
+    hyprland = {
+      type = "git";
+      url = "https://github.com/hyprwm/Hyprland";
+      submodules = true;
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    Hyprspace = {
+      url = "github:KZDKM/Hyprspace";
 
-**`plugins.lua`:**
+      # Hyprspace uses latest Hyprland. We declare this to keep them in sync.
+      inputs.hyprland.follows = "hyprland";
+    };
+  };
 
-```lua
-local hyprspace = require("Hyprspace")
+... # your normal setup with hyprland
 
-hyprspace.setup()
-```
-
-`setup()` does **not** scan hyprpm’s install tree for a `.so` path. It:
-
-1. Uses `plugin_path` if you passed one (manual mode)
-2. Else `HYPRSPACE_PLUGIN_PATH` if set
-3. Else `Hyprspace.so` next to `Hyprspace.lua`
-4. Else runs `hyprpm reload` and checks whether `hl.plugin.Hyprspace` is available
-
-After Hyprland or plugin updates:
-
-```bash
-hyprpm update
-hyprpm reload
-hyprctl reload
-```
-
-### Environment variable
-
-Override the `.so` location without editing Lua:
-
-```bash
-export HYPRSPACE_PLUGIN_PATH="$HOME/.config/hypr/Hyprspace/Hyprspace.so"
+  wayland.windowManager.hyprland.plugins = [
+    # ... whatever
+    inputs.Hyprspace.packages.${pkgs.system}.Hyprspace
+  ];
+}
 ```
 
 ## Usage
 
-### Lua API
-
-```lua
-local hyprspace = require("Hyprspace")
-
-hyprspace.setup()
-hyprspace.apply_config()
-hyprspace.toggle()
-hyprspace.overview("open")
-hyprspace.overview("close")
-hyprspace.reload()
-```
-
-### Plugin API (after load)
-
-```lua
-hl.plugin.Hyprspace.overview("toggle")
-hl.plugin.Hyprspace.overview("open")
-hl.plugin.Hyprspace.overview("close")
-```
+### Opening Overview
+- Bind the `overview:toggle` or perform a workspace swipe vertically would open / close the panel.
+### Interaction
+- Window management:
+    - Click on workspace to change to it
+    - Click on a window to drag it
+    - Drag a window into a workspace would move the window to the workspace
+- Exiting
+    - Click without dragging the window exits the overview
+    - Pressing ESC exits the overview
+- Navigating
+    - When there are many workspaces open, scroll / swipe on the panel to pan through opened workspaces
 
 ## Configuration
+### Dispatchers
+- Use `overview:toggle` dispatcher to toggle workspace overview on current monitor
+- Use `overview:close` to close the overview on current monitor if opened
+- Use `overview:open` to open the overview on current monitor if closed
+- Adding the `all` argument to these dispatchers would toggle / open / close overview on all monitors
 
-Defaults and Matugen colors live in [Hyprspace.lua](./Hyprspace.lua). The helper reads:
+### Lua Configuration (Hyprland 0.55+)
 
-```text
-~/.config/matugen/generated/hyprland-colors.lua
-```
+Starting with Hyprland 0.55+, the configuration format has transitioned to Lua as the default (`~/.config/hypr/hyprland.lua`).
 
-If missing, built-in fallback colors are used. Matugen `rgba(rrggbbaa)` values are converted to the integer format the plugin expects.
-
-Applied via `hl.config({ plugin = { hyprspace = { ... } } })`. Example:
+#### 1. Setting Config Options
+Plugin settings are structured nested within the `hl.config()` table under `plugin.overview`.
 
 ```lua
-plugin = {
-    hyprspace = {
-        panel_height = 220,
-        panel_border_width = 2,
-        workspace_margin = 10,
-        reserved_area = 35,
-        workspace_border_size = 1,
-
-        center_aligned = true,
-        on_bottom = false,
-        draw_active_workspace = true,
-        hide_real_layers = false,
-        affect_strut = false,
-
-        auto_drag = true,
-        auto_scroll = true,
-        exit_on_click = true,
-        exit_on_switch = false,
-
-        disable_gestures = false,
-        swipe_fingers = 3,
-        swipe_distance = 300,
-        swipe_force_speed = 30,
-        swipe_cancel_ratio = 0.5,
-        click_release_threshold_ms = 200,
-    },
-}
+hl.config({
+    plugin = {
+        overview = {
+            panelColor = "#1e1e2e",
+            panelBorderColor = "#cba6f7",
+            workspaceActiveBackground = "rgba(49, 50, 68, 0.8)",
+            workspaceActiveBorder = "rgb(203, 166, 247)",
+            onBottom = false,
+            autoDrag = true,
+            -- Add other overview settings here
+        }
+    }
+})
 ```
 
-### Main options
+#### 2. Using Lua Dispatchers
+To invoke dispatchers, Hyprspace registers Lua wrapper functions in the `hl.plugin.overview` namespace. These can be bound in your configuration, run inside callbacks, or executed from the command line.
 
+The following Lua functions are available:
+*   `hl.plugin.overview.toggle(arg)`: Toggles the overview on the current monitor.
+*   `hl.plugin.overview.open(arg)`: Opens the overview on the current monitor.
+*   `hl.plugin.overview.close(arg)`: Closes the overview on the current monitor.
+
+#### 3. Examples
+
+##### Keybindings in `hyprland.lua`:
+When binding Lua wrapper functions using `hl.bind`, you must wrap the call in a function definition:
+
+```lua
+-- Toggle overview on the current monitor using SUPER + TAB
+hl.bind("SUPER + TAB", function()
+    hl.plugin.overview.toggle()
+end, { description = "Toggle Hyprspace overview" })
+
+-- Toggle overview on all monitors
+hl.bind("SUPER + SHIFT + TAB", function()
+    hl.plugin.overview.toggle("all")
+end, { description = "Toggle Hyprspace overview on all monitors" })
+```
+
+### Styling
 #### Colors
-
-- `panel_color`, `panel_border_color`
-- `workspace_active_background`, `workspace_inactive_background`
-- `workspace_active_border`, `workspace_inactive_border`
-- `drag_alpha`, `disable_blur`
-
+- `plugin:overview:panelColor`
+- `plugin:overview:panelBorderColor`
+- `plugin:overview:workspaceActiveBackground`
+- `plugin:overview:workspaceInactiveBackground`
+- `plugin:overview:workspaceActiveBorder`
+- `plugin:overview:workspaceInactiveBorder`
+- `plugin:overview:dragAlpha` overrides the alpha of window when dragged in overview (0 - 1, 0 = transparent, 1 = opaque)
+- `plugin:overview:disableBlur`
 #### Layout
+- `plugin:overview:panelHeight`
+- `plugin:overview:panelBorderWidth`
+- `plugin:overview:onBottom` whether if panel should be on bottom instead of top
+- `plugin:overview:workspaceMargin` spacing of workspaces with eachother and the edge of the panel
+- `plugin:overview:reservedArea` padding on top of the panel, for Macbook camera notch
+- `plugin:overview:workspaceBorderSize`
+- `plugin:overview:centerAligned` whether if workspaces should be aligned at the center (KDE / macOS style) or at the left (Windows style)
+- `plugin:overview:hideBackgroundLayers` do not draw background and bottom layers in overview
+- `plugin:overview:hideTopLayers` do not draw top layers in overview
+- `plugin:overview:hideOverlayLayers` do not draw overlay layers in overview
+- `plugin:overview:hideRealLayers` whether to hide layers in actual workspace
+- `plugin:overview:drawActiveWorkspace` draw the active workspace in overview as-is
+- `plugin:overview:overrideGaps` whether if overview should override the layout gaps in the current workspace using the following values
+- `plugin:overview:gapsIn`
+- `plugin:overview:gapsOut`
+- `plugin:overview:affectStrut` whether the panel should push window aside, disabling this option also disables `overrideGaps`
 
-- `panel_height`, `panel_border_width`, `workspace_margin`, `reserved_area`, `workspace_border_size`
-- `adaptive_height`, `center_aligned`, `on_bottom`
-- `hide_background_layers`, `hide_top_layers`, `hide_overlay_layers`
-- `draw_active_workspace`, `hide_real_layers`, `affect_strut`
+### Animation
+- The panel uses the `windows` curve for a slide-in animation
+- Use `plugin:overview:overrideAnimSpeed` to override the animation speed
 
-#### Behavior
-
-- `auto_drag`, `auto_scroll`, `exit_on_click`, `switch_on_drop`, `exit_on_switch`
-- `show_new_workspace`, `show_empty_workspace`, `show_special_workspace`, `exit_key`
-
-#### Gestures and input
-
-- `disable_gestures`, `reverse_swipe`, `swipe_fingers`, `swipe_distance`, `swipe_force_speed`
-- `swipe_cancel_ratio`, `swipe_threshold`, `swipe_closed_padding`, `workspace_scroll_speed`
-- `click_release_threshold_ms`
-
-#### Animation
-
-- `override_anim_speed`
-
-## Troubleshooting
-
-### Keybind does nothing
-
-```bash
-hyprctl plugin list
-```
-
-Expect `Plugin Hyprspace`. If empty:
-
-- Local: `make all` in the Hyprspace repo, then `hyprctl reload`
-- hyprpm: `hyprpm reload`, then `hyprctl reload`
-- Ensure `plugins.lua` calls `hyprspace.setup()` (not `hyprspace.setup(auto)` — `auto` is not a valid argument)
-
-### Lua colors / settings not applied
-
-`plugins.lua` must call `hyprspace.setup()` or `hyprspace.setup({ plugin_path = "..." })` so hooks run and `hl.config(...)` is applied after the plugin loads.
-
-### `require("Hyprspace")` fails
-
-Add to your Hyprland Lua entrypoint:
-
-```lua
-package.path = package.path .. ";" .. HOME .. "/.config/hypr/Hyprspace/?.lua"
-```
-
-Do **not** append `Hyprspace/Hyprspace.lua` directly — use `?.lua`.
-
-### `hyprpm enable` fails
-
-- Correct repo URL
-- `hyprpm.toml` has a commit pin for your Hyprland version (for 0.56.0, pin after the State/Animation API port is committed)
-- Plugin builds cleanly on that commit (`hyprpm update` / rebuild)
-
-### Build fails: missing `AnimationManager.hpp`
-
-On Hyprland 0.56+, animation headers moved from `managers/animation/` to `animation/`, and compositor helpers moved into `State::` / `Desktop::` / `Fullscreen::` trackers. Rebuild this fork against matching headers (`pkg-config --modversion hyprland`).
-
-### Plugin crashes on load
-
-Check `~/.cache/hyprland/` crash reports. Rebuild the plugin against the same Hyprland version you are running (`hyprctl version`).
+### Behaviors
+- `plugin:overview:autoDrag` mouse click always drags window when overview is open
+- `plugin:overview:autoScroll` mouse scroll on active workspace area always switch workspace
+- `plugin:overview:exitOnClick` mouse click without dragging exits overview
+- `plugin:overview:switchOnDrop` switch to the workspace when a window is droppped into it
+- `plugin:overview:exitOnSwitch` overview exits when overview is switched by clicking on workspace view or by `switchOnDrop`
+- `plugin:overview:showNewWorkspace` add a new empty workspace at the end of workspaces view
+- `plugin:overview:showEmptyWorkspace` show empty workspaces that are inbetween non-empty workspaces
+- `plugin:overview:showSpecialWorkspace` defaults to false
+- `plugin:overview:disableGestures`
+- `plugin:overview:reverseSwipe` reverses the direction of swipe gesture, for macOS peeps?
+- `plugin:overview:exitKey` key used to exit overview mode (default: Escape). Leave empty to disable keyboard exit.
+- Touchpad gesture behavior follows Hyprland workspace swipe behavior
+  - `gestures:workspace_swipe_fingers`
+  - `gestures:workspace_swipe_cancel_ratio`
+  - `gestures:workspace_swipe_min_speed_to_force`

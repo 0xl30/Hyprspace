@@ -9,12 +9,13 @@ class CHyprspaceWidget {
 
     int64_t ownerID;
 
+    // animation override stuff
     Hyprutils::Animation::SAnimationPropertyConfig curAnimationConfig;
-    SP<Hyprutils::Animation::SAnimationPropertyConfig> m_animationConfig;
+    Hyprutils::Animation::SAnimationPropertyConfig curAnimation;
 
     // for checking mouse hover for workspace drag and move
     // modified on draw call, accessed on mouse click and release
-    std::vector<std::tuple<WORKSPACEID, CBox>> workspaceBoxes;
+    std::vector<std::tuple<int, CBox>> workspaceBoxes;
 
     // for storing the fullscreen state of windows prior to overview activation (which unfullscreens all windows)
     std::vector<std::tuple<PHLWINDOWREF, Fullscreen::SFullscreenMode>> prevFullscreen;
@@ -23,7 +24,7 @@ class CHyprspaceWidget {
     std::vector<std::tuple<PHLLS, float>> oLayerAlpha;
 
     // for click-to-exit
-    std::chrono::high_resolution_clock::time_point lastPressedTime = std::chrono::high_resolution_clock::now();
+    std::chrono::system_clock::time_point lastPressedTime = std::chrono::high_resolution_clock::now();
 
     bool swiping = false;
     // whether if the panel is active before the current swiping event
@@ -31,16 +32,10 @@ class CHyprspaceWidget {
     double avgSwipeSpeed = 0.;
     // number of swiping speed frames recorded
     int swipePoints = 0;
-    // Swipe travel in monitor-scaled pixels, where 0 is hidden and panelTravel() is fully shown.
-    double curSwipeOffset = 0.;
+    // on second thought, this seems redundant as we could just write to curYOffset while swiping
+    double curSwipeOffset = 10.;
 
     PHLANIMVAR<float> workspaceScrollOffset;
-
-    void restoreHiddenLayers();
-    void restoreFullscreenWindows();
-    void releaseAnimations();
-    bool animationsOk() const;
-    void resetAnimationState(PHLMONITOR owner);
 
 public:
 
@@ -57,7 +52,6 @@ public:
     void hide();
 
     void updateConfig();
-    void cleanup(PHLMONITOR owner = nullptr);
 
     // should be called active or not
     void draw();
