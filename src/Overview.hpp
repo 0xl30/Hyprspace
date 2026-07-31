@@ -18,7 +18,7 @@ class CHyprspaceWidget {
     std::vector<std::tuple<int, CBox>> workspaceBoxes;
 
     // for storing the fullscreen state of windows prior to overview activation (which unfullscreens all windows)
-    std::vector<std::tuple<PHLWINDOWREF, Fullscreen::SFullscreenMode>> prevFullscreen;
+    std::vector<std::tuple<PHLWINDOWREF, Fullscreen::eFullscreenMode>> prevFullscreen;
 
     // for storing the layer alpha values prior to overview activation (which sets all panel to transparent when configured)
     std::vector<std::tuple<PHLLS, float>> oLayerAlpha;

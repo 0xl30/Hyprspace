@@ -1,6 +1,7 @@
 #include "Overview.hpp"
 #include "Globals.hpp"
 #include <hyprland/src/config/shared/animation/AnimationTree.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
 
@@ -35,16 +36,15 @@ void CHyprspaceWidget::show() {
 
     if (prevFullscreen.empty()) {
         // unfullscreen all windows
-        for (auto& ws : State::workspaceState()->workspaces()) {
+        for (auto& w_ws : State::workspaceState()->workspaces()) {
+            const auto ws = w_ws.lock();
             if (ws && ws->m_monitor && ws->m_monitor->m_id == ownerID) {
-                const auto pWorkspace = ws.lock();
-                const auto w = Fullscreen::controller()->getFullscreenWindow(pWorkspace);
-                const auto modes = Fullscreen::controller()->getFullscreenModes(pWorkspace);
-                if (w != nullptr && modes.internal != Fullscreen::FSMODE_NONE) {
+                const auto w = Fullscreen::controller()->getFullscreenWindow(ws);
+                if (w != nullptr && Fullscreen::controller()->getFullscreenModes(w).internal != Fullscreen::FSMODE_NONE) {
                     // use fakefullscreenstate to preserve client's internal state
                     // fixes youtube fullscreen not restoring properly
-                    if (modes.internal == Fullscreen::FSMODE_FULLSCREEN) w->m_wantsInitialFullscreen = true;
-                    prevFullscreen.emplace_back(std::make_tuple(PHLWINDOWREF(w), modes));
+                    if (Fullscreen::controller()->getFullscreenModes(w).internal == Fullscreen::FSMODE_FULLSCREEN) w->m_wantsInitialFullscreen = true;
+                    prevFullscreen.emplace_back(std::make_tuple(PHLWINDOWREF(w), Fullscreen::controller()->getFullscreenModes(w).internal));
                     Fullscreen::controller()->setFullscreenMode(w, Fullscreen::FSMODE_NONE, Fullscreen::FSMODE_NONE);
                 }
             }
@@ -108,9 +108,9 @@ void CHyprspaceWidget::hide() {
     for (auto& fs : prevFullscreen) {
         const auto w = std::get<0>(fs).lock();
         if (!w) continue;
-        const auto modes = std::get<1>(fs);
-        Fullscreen::controller()->setFullscreenMode(w, modes.internal, modes.client);
-        if (modes.internal == Fullscreen::FSMODE_FULLSCREEN) w->m_wantsInitialFullscreen = false;
+        const auto oFullscreenMode = std::get<1>(fs);
+        Fullscreen::controller()->setFullscreenMode(w, oFullscreenMode);
+        if (oFullscreenMode == Fullscreen::FSMODE_FULLSCREEN) w->m_wantsInitialFullscreen = false;
     }
     prevFullscreen.clear();
 

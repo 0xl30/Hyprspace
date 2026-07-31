@@ -1,7 +1,23 @@
 #include "Overview.hpp"
 #include "Globals.hpp"
-#include <hyprland/src/config/legacy/ConfigManager.hpp>
+#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
+
+static void applyGapsRule(const WORKSPACEID& id, const Config::CCssGapData& gapsIn, const Config::CCssGapData& gapsOut) {
+    Config::CWorkspaceRule rule;
+
+    // replaceOrAdd() and getWorkspaceRuleFor() match on m_workspaceString, so it has to
+    // be the same identifier text the old parser would have seen
+    rule.m_workspaceString            = std::to_string(id);
+    const auto& [wsID, wsName, auto_] = getWorkspaceIDNameFromString(rule.m_workspaceString);
+    rule.m_workspaceName              = wsName;
+    rule.m_workspaceId                = auto_ ? WORKSPACE_INVALID : wsID;
+
+    rule.m_gapsIn                     = gapsIn;
+    rule.m_gapsOut                    = gapsOut;
+
+    Config::workspaceRuleMgr()->replaceOrAdd(std::move(rule));
+}
 
 // FIXME: preserve original workspace rules
 void CHyprspaceWidget::updateLayout() {
@@ -46,10 +62,8 @@ void CHyprspaceWidget::updateLayout() {
         for (auto& ws : State::workspaceState()->workspaces()) { // HACK: recalculate other workspaces without reserved area
             if (ws && ws->m_monitor && ws->m_monitor->m_id == ownerID && ws->m_id != oActiveWorkspace->m_id) {
                 pMonitor->m_activeWorkspace = ws.lock();
-                const auto curRules = std::to_string(pMonitor->activeWorkspaceID()) + ", gapsin:" + PGAPSIN->toString() + ", gapsout:" + PGAPSOUT->toString();
                 if (config.overrideGaps->value()) {
-                    if (const auto legacy = Config::Legacy::mgr().lock())
-                        legacy->handleWorkspaceRules("", curRules);
+                    applyGapsRule(pMonitor->activeWorkspaceID(), *PGAPSIN, *PGAPSOUT);
                 }
                 g_layoutManager->recalculateMonitor(pMonitor);
             }
@@ -58,8 +72,7 @@ void CHyprspaceWidget::updateLayout() {
 
         const auto curRules = std::to_string(pMonitor->activeWorkspaceID()) + ", gapsin:" + std::to_string(config.gapsIn->value()) + ", gapsout:" + std::to_string(config.gapsOut->value());
         if (config.overrideGaps->value()) {
-            if (const auto legacy = Config::Legacy::mgr().lock())
-                legacy->handleWorkspaceRules("", curRules);
+            applyGapsRule(pMonitor->activeWorkspaceID(), config.gapsIn->value(), config.gapsOut->value());
         }
         g_layoutManager->recalculateMonitor(pMonitor);
 
@@ -67,10 +80,8 @@ void CHyprspaceWidget::updateLayout() {
     else {
         for (auto& ws : State::workspaceState()->workspaces()) {
             if (ws && ws->m_monitor && ws->m_monitor->m_id == ownerID) {
-                const auto curRules = std::to_string(ws->m_id) + ", gapsin:" + PGAPSIN->toString() + ", gapsout:" + PGAPSOUT->toString();
                 if (config.overrideGaps->value()) {
-                    if (const auto legacy = Config::Legacy::mgr().lock())
-                        legacy->handleWorkspaceRules("", curRules);
+                    applyGapsRule(ws->m_id, *PGAPSIN, *PGAPSOUT);
                 }
             }
         }

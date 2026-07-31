@@ -1,6 +1,5 @@
 #include "Overview.hpp"
 #include "Globals.hpp"
-#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/helpers/memory/Memory.hpp>
 #include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
 #include <hyprland/src/render/pass/RectPassElement.hpp>
