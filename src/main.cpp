@@ -11,6 +11,10 @@
 #include <hyprland/src/pointer/PointerController.hpp>
 #include <hyprutils/memory/SharedPtr.hpp>
 #include <any>
+#include <format>
+#include <stdexcept>
+#include <string_view>
+#include <unordered_map>
 #include "Overview.hpp"
 #include "Globals.hpp"
 #include "Lua.hpp"
@@ -380,8 +384,36 @@ void registerMonitors() {
     }
 }
 
+// Hyprland's loader only checks the API string "0.2", which stays the same across
+// releases. The real compatibility key is the ABI hash. A stale plugin that still
+// passes "0.2" then crashes later, inside render and input, and takes the session
+// with it. pluginInit runs inside Hyprland's fault guard, so stopping here keeps
+// the compositor up. The notice is Hyprland's own overlay, so it shows on any setup.
+static void refuseIncompatibleHyprland(HANDLE handle) {
+    const char* running = __hyprland_api_get_hash();
+    const char* built   = __hyprland_api_get_client_hash();
+    if (running && built && std::string_view{running} == built)
+        return;
+
+    const std::string message = "Hyprspace needs an update. It was built for a different Hyprland, so it was not loaded and Hyprland did not crash. Rebuild Hyprspace for this Hyprland, then load it again.";
+
+    Log::logger->log(Log::ERR, message);
+    Log::logger->log(Log::ERR, std::format("[Hyprspace] running {} | built {}", running ? running : "(unavailable)", built ? built : "(unavailable)"));
+
+    HyprlandAPI::addNotificationV2(handle, std::unordered_map<std::string, std::any>{
+                                               {"text", message},
+                                               {"time", static_cast<uint64_t>(20000)},
+                                               {"color", CHyprColor{1.F, 0.45F, 0.1F, 1.F}},
+                                               {"icon", ICON_WARNING},
+                                           });
+
+    throw std::runtime_error(message);
+}
+
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
     pHandle = inHandle;
+
+    refuseIncompatibleHyprland(inHandle);
 
     Log::logger->log(Log::DEBUG, "Loading overview plugin");
 
